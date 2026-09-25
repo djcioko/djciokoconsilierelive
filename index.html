@@ -41,7 +41,13 @@ h1{font-size:18px;font-weight:500;color:var(--blue2);margin-bottom:4px;text-alig
 <div class="app">
   <header class="topbar">
     <div class="logo">DJCIOKOSTUDIO</div>
-    <span class="live-badge" id="topLiveBadge">ON AIR LIVE</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <!-- Contorul de ascultători -->
+      <span id="listenerCountBadge" style="font-size: 11px; background: rgba(126,203,255,0.15); border: 1px solid #7ecbff; padding: 3px 8px; border-radius: 12px; display: none; color: #b9e4ff;">
+        👥 <span id="activeCount">0</span> online
+      </span>
+      <span class="live-badge" id="topLiveBadge">ON AIR LIVE</span>
+    </div>
   </header>
   <div class="main-content">
     <h1>STUDIO VDO NINJA &amp; MUSIC BG</h1>
@@ -111,6 +117,9 @@ let liveStream = null;
 let liveVideoEl = null;
 let mpBusy = false;
 let selfieSegmentation = null;
+
+let peer = null;
+let connectedPeersCount = 0;
 
 window.customBgImage = null;
 window.customBgVideo = null;
@@ -250,7 +259,7 @@ function drawWithSegmentation(mask) {
 
 function initMediaPipe() {
   if (typeof SelfieSegmentation === 'undefined') {
-    showToast('MediaPipe nu s-a încărcat. AI Cut indisponibil.');
+    showToast('MediaPipe nu s-a încărcat.');
     return;
   }
   selfieSegmentation = new SelfieSegmentation({
@@ -279,11 +288,7 @@ async function startCamera() {
     if (localStream) localStream.getTracks().forEach((t) => t.stop());
     const constraints = {
       audio: { echoCancellation: true, noiseSuppression: true },
-      video: {
-        facingMode,
-        width: { ideal: 720 },
-        height: { ideal: 1280 }
-      }
+      video: { facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
     };
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = localStream;
@@ -295,7 +300,7 @@ async function startCamera() {
   } catch (err) {
     console.error(err);
     startOverlay.classList.remove('hidden');
-    showToast('Eroare cameră: ' + (err.message || err.name) + '. Folosește Chrome și HTTPS.');
+    showToast('Eroare cameră');
   }
 }
 
@@ -318,37 +323,33 @@ function startLivePreview() {
   liveVideoEl.muted = true;
   liveVideoEl.playsInline = true;
   liveVideoEl.play().catch(() => {});
-  showToast('ON AIR: canvas-ul e stream. În VDO.Ninja alege screen/window sau Virtual Cam.');
+  showToast('ON AIR activat!');
+}
+
+function updateCounterDisplay() {
+  const badge = document.getElementById('listenerCountBadge');
+  const countSpan = document.getElementById('activeCount');
+  if (isOnAir) {
+    badge.style.display = 'inline-block';
+    countSpan.textContent = connectedPeersCount;
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 document.getElementById('btnStartCam').addEventListener('click', startCamera);
-document.getElementById('btnMusicBg1').addEventListener('click', () => {
-  window.customBgVideo = null;
-  window.customBgImage = createMusicBg1();
-  showToast('Fundal Club');
-});
-document.getElementById('btnMusicBg2').addEventListener('click', () => {
-  window.customBgVideo = null;
-  window.customBgImage = createMusicBg2();
-  showToast('Fundal DJ Neon');
-});
-document.getElementById('btnMusicBg3').addEventListener('click', () => {
-  window.customBgVideo = null;
-  window.customBgImage = createMusicBg3();
-  showToast('Fundal Party');
-});
+document.getElementById('btnMusicBg1').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg1(); showToast('Fundal Club'); });
+document.getElementById('btnMusicBg2').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg2(); showToast('Fundal DJ Neon'); });
+document.getElementById('btnMusicBg3').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg3(); showToast('Fundal Party'); });
 
 const savedLogo = localStorage.getItem('dj_logo');
 if (savedLogo) document.getElementById('logoText').value = savedLogo;
-document.getElementById('logoText').addEventListener('input', (e) => {
-  localStorage.setItem('dj_logo', e.target.value);
-});
+document.getElementById('logoText').addEventListener('input', (e) => { localStorage.setItem('dj_logo', e.target.value); });
 
 document.getElementById('btnAiCut').addEventListener('click', () => {
   aiCutActive = !aiCutActive;
   document.getElementById('btnAiCut').textContent = aiCutActive ? '✂️ AI Cut ON' : '✂️ AI Cut OFF';
   document.getElementById('btnAiCut').classList.toggle('on', aiCutActive);
-  showToast(aiCutActive ? 'AI Cut: te pune pe fundal' : 'AI Cut oprit — vezi camera full');
 });
 
 document.getElementById('btnScaleToggle').addEventListener('click', () => {
@@ -357,7 +358,7 @@ document.getElementById('btnScaleToggle').addEventListener('click', () => {
 });
 
 document.getElementById('btnMic').addEventListener('click', () => {
-  if (!localStream) return showToast('Pornește mai întâi camera');
+  if (!localStream) return showToast('Pornește camera mai întâi');
   audioEnabled = !audioEnabled;
   localStream.getAudioTracks().forEach((t) => { t.enabled = audioEnabled; });
   document.getElementById('btnMic').textContent = audioEnabled ? '🎙 Audio ON' : '🔇 Audio OFF';
@@ -373,7 +374,6 @@ document.getElementById('btnVideoToggle').addEventListener('click', () => {
 document.getElementById('btnFlip').addEventListener('click', () => {
   facingMode = facingMode === 'user' ? 'environment' : 'user';
   if (localStream) startCamera();
-  else showToast('Pornește camera, apoi rotește');
 });
 
 document.getElementById('btnUploadBg').addEventListener('click', () => document.getElementById('fileBg').click());
@@ -382,7 +382,7 @@ document.getElementById('fileBg').addEventListener('change', (e) => {
   if (!file) return;
   window.customBgVideo = null;
   const img = new Image();
-  img.onload = () => { window.customBgImage = img; showToast('Fundal foto încărcat'); };
+  img.onload = () => { window.customBgImage = img; showToast('Fundal încărcat'); };
   img.src = URL.createObjectURL(file);
 });
 
@@ -392,11 +392,9 @@ document.getElementById('fileBgVideo').addEventListener('change', (e) => {
   if (!file) return;
   window.customBgImage = null;
   bgVideoElem.src = URL.createObjectURL(file);
-  bgVideoElem.loop = true;
-  bgVideoElem.muted = true;
-  bgVideoElem.play();
+  bgVideoElem.loop = true; bgVideoElem.muted = true; bgVideoElem.play();
   window.customBgVideo = bgVideoElem;
-  showToast('Fundal video încărcat');
+  showToast('Video încărcat');
 });
 
 document.getElementById('btnUploadMask').addEventListener('click', () => document.getElementById('fileMask').click());
@@ -408,6 +406,7 @@ document.getElementById('fileMask').addEventListener('change', (e) => {
   img.src = URL.createObjectURL(file);
 });
 
+// Butonul ON AIR & Conexiunea PeerJS cu ID Fix
 document.getElementById('recBtn').addEventListener('click', () => {
   if (!localStream) {
     startCamera();
@@ -416,10 +415,54 @@ document.getElementById('recBtn').addEventListener('click', () => {
   isOnAir = !isOnAir;
   document.getElementById('recBtn').classList.toggle('rec', isOnAir);
   document.getElementById('topLiveBadge').classList.toggle('active', isOnAir);
-  if (isOnAir) startLivePreview();
-  else {
+
+  if (isOnAir) {
+    startLivePreview();
+    
+    // ID-ul fix pentru emisie (trebuie să corespundă cu cel de pe Weebly)
+    const fixedId = 'djcioko-live-studio-999';
+    peer = new Peer(fixedId);
+
+    peer.on('open', (id) => {
+      console.log('Online cu ID:', id);
+      showToast('ON AIR activat pe server!');
+    });
+
+    // Când un ascultător apelează video/audio
+    peer.on('call', (call) => {
+      call.answer(liveStream); // Trimitem stream-ul video
+    });
+
+    // Când un ascultător deschide conexiunea de date (contor)
+    peer.on('connection', (conn) => {
+      connectedPeersCount++;
+      updateCounterDisplay();
+      showToast(`Ascultător conectat! Total: ${connectedPeersCount}`);
+
+      conn.on('close', () => {
+        connectedPeersCount = Math.max(0, connectedPeersCount - 1);
+        updateCounterDisplay();
+        showToast(`Ascultător ieșit. Rămân: ${connectedPeersCount}`);
+      });
+    });
+
+    peer.on('error', (err) => {
+      console.error('Eroare Peer:', err);
+      // Dacă ID-ul este deja folosit, încearcă să curețe
+      if(err.type === 'unavailable-id') {
+        showToast('Eroare: Sesiunea anterioară este încă închisă. Mai încearcă o dată.');
+      }
+    });
+
+  } else {
     stopLivePreview();
-    showToast('Transmisie oprită');
+    if (peer) {
+      peer.destroy();
+      peer = null;
+    }
+    connectedPeersCount = 0;
+    updateCounterDisplay();
+    showToast('Emisie oprită');
   }
 });
 
