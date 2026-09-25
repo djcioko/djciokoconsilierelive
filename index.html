@@ -22,9 +22,9 @@ h1{font-size:18px;font-weight:500;color:var(--blue2);margin-bottom:4px;text-alig
 .studio{position:relative;width:100%;aspect-ratio:9/16;max-height:55vh;background:#000;border-radius:14px;overflow:hidden;border:1px solid #2a5570;margin:0 auto}
 .studio canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
 .studio video.raw{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.start-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:rgba(0,0,0,.55);z-index:3;text-align:center;padding:20px}
+.start-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,.85);z-index:3;text-align:center;padding:20px}
 .start-overlay.hidden{display:none}
-.start-overlay button{border:0;border-radius:12px;padding:14px 18px;background:linear-gradient(#4aa0d8,#21608f);color:#fff;font-size:15px;cursor:pointer}
+.start-overlay button{border:0;border-radius:12px;padding:14px 20px;background:linear-gradient(#4aa0d8,#21608f);color:#fff;font-size:14px;cursor:pointer;font-weight:bold;width:100%;max-width:260px}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
 .btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #5aa0d0;background:linear-gradient(#3a7eb0,#1d4e73);color:#eaf6ff;padding:8px 10px;border-radius:10px;cursor:pointer;font-size:11px}
 .btn.on{outline:2px solid #7ecbff;border-color:#b9e4ff}
@@ -42,7 +42,7 @@ h1{font-size:18px;font-weight:500;color:var(--blue2);margin-bottom:4px;text-alig
   <header class="topbar">
     <div class="logo">DJCIOKOSTUDIO</div>
     <div style="display: flex; align-items: center; gap: 6px;">
-      <!-- Contorul de ascultători -->
+      <!-- Contor ascultători -->
       <span id="listenerCountBadge" style="font-size: 11px; background: rgba(126,203,255,0.15); border: 1px solid #7ecbff; padding: 3px 8px; border-radius: 12px; display: none; color: #b9e4ff;">
         👥 <span id="activeCount">0</span> online
       </span>
@@ -51,14 +51,18 @@ h1{font-size:18px;font-weight:500;color:var(--blue2);margin-bottom:4px;text-alig
   </header>
   <div class="main-content">
     <h1>STUDIO VDO NINJA &amp; MUSIC BG</h1>
-    <p class="muted">Apasă START CAMERA, alege fundalul, apoi ON AIR</p>
+    <p class="muted">Alege camera dorită mai jos, apoi dă ON AIR</p>
     <div class="studio" id="stageBox">
       <video id="cam" class="raw" autoplay playsinline muted></video>
       <video id="bgVideoElem" class="raw" playsinline loop muted></video>
       <canvas id="stage" width="720" height="1280"></canvas>
+      
+      <!-- Ecranul de Start cu butoane separate pentru Selfie și Camera Mare (Spate) -->
       <div class="start-overlay" id="startOverlay">
-        <button id="btnStartCam" type="button">📷 START CAMERA</button>
-        <span class="muted">Pe telefon camera pornește doar după tap</span>
+        <h3 style="color: #b9e4ff; margin-bottom: 5px; font-size: 16px;">ALEGE CAMERA:</h3>
+        <button id="btnStartSelfie" type="button">🤳 PORNEȘTE CAMERA SELFIE</button>
+        <button id="btnStartBack" type="button" style="background: linear-gradient(#d88b4a,#8f4c21);">📷 PORNEȘTE CAMERA MARE (SPATE)</button>
+        <span class="muted" style="margin-top: 5px;">Apasă pe opțiunea dorită pentru a porni transmisia</span>
       </div>
     </div>
     <div class="rec-row">
@@ -68,7 +72,6 @@ h1{font-size:18px;font-weight:500;color:var(--blue2);margin-bottom:4px;text-alig
       <button class="btn on" id="btnMic" type="button">🎙 Audio ON</button>
       <button class="btn on" id="btnVideoToggle" type="button">📹 Video ON</button>
       <button class="btn" id="btnAiCut" type="button">✂️ AI Cut OFF</button>
-      <button class="btn" id="btnFlip" type="button">🔄 Camera</button>
       <button class="btn" id="btnMusicBg1" type="button">🎵 Fundal Club</button>
       <button class="btn" id="btnMusicBg2" type="button">🎧 Fundal DJ Neon</button>
       <button class="btn" id="btnMusicBg3" type="button">🎸 Fundal Party</button>
@@ -111,7 +114,7 @@ let audioEnabled = true;
 let videoEnabled = true;
 let aiCutActive = false;
 let scaleMode = 'cover';
-let facingMode = 'user'; // Forțat pe 'user' (selfie din start)
+let facingMode = 'user'; // 'user' pentru selfie, 'environment' pentru spate
 let isOnAir = false;
 let liveStream = null;
 let liveVideoEl = null;
@@ -258,10 +261,7 @@ function drawWithSegmentation(mask) {
 }
 
 function initMediaPipe() {
-  if (typeof SelfieSegmentation === 'undefined') {
-    showToast('MediaPipe nu s-a încărcat.');
-    return;
-  }
+  if (typeof SelfieSegmentation === 'undefined') return;
   selfieSegmentation = new SelfieSegmentation({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
   });
@@ -283,13 +283,14 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
 }
 
-async function startCamera() {
+async function startCamera(mode) {
+  if (mode) facingMode = mode;
   try {
     if (localStream) localStream.getTracks().forEach((t) => t.stop());
     const constraints = {
       audio: { echoCancellation: true, noiseSuppression: true },
       video: { 
-        facingMode: { exact: facingMode }, // Forțează exact camera selectată (user = selfie)
+        facingMode: { exact: facingMode }, 
         width: { ideal: 720 }, 
         height: { ideal: 1280 } 
       }
@@ -297,7 +298,6 @@ async function startCamera() {
     try {
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch(e) {
-      // Fallback în caz că dispozitivul nu suportă exact exact
       localStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: { facingMode: facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
@@ -308,11 +308,11 @@ async function startCamera() {
     video.setAttribute('playsinline', 'true');
     await video.play();
     startOverlay.classList.add('hidden');
-    showToast(facingMode === 'user' ? 'Cameră selfie pornită' : 'Cameră spate pornită');
+    showToast(facingMode === 'user' ? 'Cameră Selfie pornită' : 'Cameră Mare (Spate) pornită');
   } catch (err) {
     console.error(err);
     startOverlay.classList.remove('hidden');
-    showToast('Eroare cameră');
+    showToast('Eroare la pornirea camerei');
   }
 }
 
@@ -349,7 +349,10 @@ function updateCounterDisplay() {
   }
 }
 
-document.getElementById('btnStartCam').addEventListener('click', startCamera);
+// Butoane separate de start pentru fiecare cameră
+document.getElementById('btnStartSelfie').addEventListener('click', () => startCamera('user'));
+document.getElementById('btnStartBack').addEventListener('click', () => startCamera('environment'));
+
 document.getElementById('btnMusicBg1').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg1(); showToast('Fundal Club'); });
 document.getElementById('btnMusicBg2').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg2(); showToast('Fundal DJ Neon'); });
 document.getElementById('btnMusicBg3').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg3(); showToast('Fundal Party'); });
@@ -381,13 +384,6 @@ document.getElementById('btnVideoToggle').addEventListener('click', () => {
   videoEnabled = !videoEnabled;
   document.getElementById('btnVideoToggle').textContent = videoEnabled ? '📹 Video ON' : '📴 Video OFF';
   document.getElementById('btnVideoToggle').classList.toggle('on', videoEnabled);
-});
-
-// Butonul de schimbare cameră (Flip între Selfie și Spate)
-document.getElementById('btnFlip').addEventListener('click', () => {
-  facingMode = facingMode === 'user' ? 'environment' : 'user';
-  showToast(facingMode === 'user' ? 'Trecere la Selfie...' : 'Trecere la Spate...');
-  startCamera();
 });
 
 document.getElementById('btnUploadBg').addEventListener('click', () => document.getElementById('fileBg').click());
@@ -423,7 +419,7 @@ document.getElementById('fileMask').addEventListener('change', (e) => {
 // Butonul ON AIR & Conexiunea PeerJS cu ID Fix
 document.getElementById('recBtn').addEventListener('click', () => {
   if (!localStream) {
-    startCamera();
+    showToast('Alege o cameră mai întâi!');
     return;
   }
   isOnAir = !isOnAir;
@@ -433,7 +429,6 @@ document.getElementById('recBtn').addEventListener('click', () => {
   if (isOnAir) {
     startLivePreview();
     
-    // ID-ul fix pentru emisie (trebuie să corespundă cu cel de pe Weebly)
     const fixedId = 'djcioko-live-studio-999';
     peer = new Peer(fixedId);
 
@@ -442,12 +437,10 @@ document.getElementById('recBtn').addEventListener('click', () => {
       showToast('ON AIR activat pe server!');
     });
 
-    // Când un ascultător apelează video/audio
     peer.on('call', (call) => {
-      call.answer(liveStream); // Trimitem stream-ul video
+      call.answer(liveStream);
     });
 
-    // Când un ascultător deschide conexiunea de date (contor)
     peer.on('connection', (conn) => {
       connectedPeersCount++;
       updateCounterDisplay();
