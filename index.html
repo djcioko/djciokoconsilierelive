@@ -1,480 +1,69 @@
 <!DOCTYPE html>
 <html lang="ro">
-<head> 
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<title>DJCIOKOSTUDIO - ON AIR</title>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<style>
-:root{--bg:#071018;--blue:#7ecbff;--blue2:#b9e4ff;--red:#c1392b;--text:#eaf6ff;--muted:#9bb6c9;--line:#1c3344}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:Georgia,serif}
-button,input{font-family:inherit}
-.app{max-width:430px;margin:0 auto;min-height:100%;background:linear-gradient(#0b1a24,#071018);display:flex;flex-direction:column;padding-bottom:20px}
-.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
-.logo{letter-spacing:.16em;font-size:13px;color:var(--blue2);font-weight:bold}
-.live-badge{background:#c1392b;color:#fff;font-size:10px;padding:4px 10px;border-radius:20px;font-weight:bold;letter-spacing:.1em;display:none}
-.live-badge.active{display:inline-block;animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
-.main-content{padding:10px;flex:1;display:flex;flex-direction:column}
-h1{font-size:18px;font-weight:500;color:var(--blue2);margin-bottom:4px;text-align:center}
-.muted{color:var(--muted);font-size:12px;text-align:center;margin-bottom:10px}
-.studio{position:relative;width:100%;aspect-ratio:9/16;max-height:55vh;background:#000;border-radius:14px;overflow:hidden;border:1px solid #2a5570;margin:0 auto}
-.studio canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
-.studio video.raw{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.start-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(0,0,0,.85);z-index:3;text-align:center;padding:20px}
-.start-overlay.hidden{display:none}
-.start-overlay button{border:0;border-radius:12px;padding:14px 20px;background:linear-gradient(#4aa0d8,#21608f);color:#fff;font-size:14px;cursor:pointer;font-weight:bold;width:100%;max-width:260px}
-.tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
-.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid #5aa0d0;background:linear-gradient(#3a7eb0,#1d4e73);color:#eaf6ff;padding:8px 10px;border-radius:10px;cursor:pointer;font-size:11px}
-.btn.on{outline:2px solid #7ecbff;border-color:#b9e4ff}
-.rec-row{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:10px}
-.rec-btn{width:56px;height:56px;border-radius:50%;border:4px solid #fff;background:#c1392b;cursor:pointer}
-.rec-btn.rec{background:#fff;border-color:#c1392b;border-radius:14px;width:34px;height:34px}
-.field{margin:8px 0}
-.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
-.field input{width:100%;background:#071018;border:1px solid #2a5570;color:var(--text);padding:8px;border-radius:8px;font-size:12px}
-.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#123044;color:#b9e4ff;padding:8px 14px;border-radius:20px;font-size:12px;display:none;z-index:9;border:1px solid #7ecbff;max-width:90%}
-</style>
+<head>
+    <meta charset="UTF-8">
+    <title>DJCIOKO - STUDIO EMISIE</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
-<body>
-<div class="app">
-  <header class="topbar">
-    <div class="logo">DJCIOKOSTUDIO</div>
-    <div style="display: flex; align-items: center; gap: 6px;">
-      <!-- Contor ascultători -->
-      <span id="listenerCountBadge" style="font-size: 11px; background: rgba(126,203,255,0.15); border: 1px solid #7ecbff; padding: 3px 8px; border-radius: 12px; display: none; color: #b9e4ff;">
-        👥 <span id="activeCount">0</span> online
-      </span>
-      <span class="live-badge" id="topLiveBadge">ON AIR LIVE</span>
-    </div>
-  </header>
-  <div class="main-content">
-    <h1>STUDIO VDO NINJA &amp; MUSIC BG</h1>
-    <p class="muted">Alege camera dorită mai jos, apoi dă ON AIR</p>
-    <div class="studio" id="stageBox">
-      <video id="cam" class="raw" autoplay playsinline muted></video>
-      <video id="bgVideoElem" class="raw" playsinline loop muted></video>
-      <canvas id="stage" width="720" height="1280"></canvas>
-      
-      <!-- Ecranul de Start cu butoane separate pentru Selfie și Camera Mare (Spate) -->
-      <div class="start-overlay" id="startOverlay">
-        <h3 style="color: #b9e4ff; margin-bottom: 5px; font-size: 16px;">ALEGE CAMERA:</h3>
-        <button id="btnStartSelfie" type="button">🤳 PORNEȘTE CAMERA SELFIE</button>
-        <button id="btnStartBack" type="button" style="background: linear-gradient(#d88b4a,#8f4c21);">📷 PORNEȘTE CAMERA MARE (SPATE)</button>
-        <span class="muted" style="margin-top: 5px;">Apasă pe opțiunea dorită pentru a porni transmisia</span>
-      </div>
-    </div>
-    <div class="rec-row">
-      <button class="rec-btn" id="recBtn" title="ON AIR"></button>
-    </div>
-    <div class="tools">
-      <button class="btn on" id="btnMic" type="button">🎙 Audio ON</button>
-      <button class="btn on" id="btnVideoToggle" type="button">📹 Video ON</button>
-      <button class="btn" id="btnAiCut" type="button">✂️ AI Cut OFF</button>
-      <button class="btn" id="btnMusicBg1" type="button">🎵 Fundal Club</button>
-      <button class="btn" id="btnMusicBg2" type="button">🎧 Fundal DJ Neon</button>
-      <button class="btn" id="btnMusicBg3" type="button">🎸 Fundal Party</button>
-      <button class="btn" id="btnUploadBg" type="button">📁 Upload Foto</button>
-      <button class="btn" id="btnUploadBgVideo" type="button">🎥 Upload Video</button>
-      <button class="btn" id="btnUploadMask" type="button">🎭 Mască PNG</button>
-      <button class="btn" id="btnScaleToggle" type="button">📐 Scalare: Cover</button>
-    </div>
-    <div class="field">
-      <label>Logo pe ecran / Brand</label>
-      <input id="logoText" maxlength="28" placeholder="DJCIOKOSTUDIO"/>
-    </div>
-  </div>
-</div>
-<input type="file" id="fileBg" accept="image/*" hidden/>
-<input type="file" id="fileBgVideo" accept="video/*" hidden/>
-<input type="file" id="fileMask" accept="image/*" hidden/>
-<div class="toast" id="toast"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
-<script>
-const toastEl = document.getElementById('toast');
-function showToast(msg) {
-  toastEl.textContent = msg;
-  toastEl.style.display = 'block';
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toastEl.style.display = 'none', 3200);
-}
-
-const video = document.getElementById('cam');
-const canvas = document.getElementById('stage');
-const ctx = canvas.getContext('2d', { alpha: false });
-const personLayer = document.createElement('canvas');
-const pctx = personLayer.getContext('2d');
-const startOverlay = document.getElementById('startOverlay');
-const bgVideoElem = document.getElementById('bgVideoElem');
-
-let localStream = null;
-let audioEnabled = true;
-let videoEnabled = true;
-let aiCutActive = false;
-let scaleMode = 'cover';
-let facingMode = 'user'; // 'user' pentru selfie, 'environment' pentru spate
-let isOnAir = false;
-let liveStream = null;
-let liveVideoEl = null;
-let mpBusy = false;
-let selfieSegmentation = null;
-
-let peer = null;
-let connectedPeersCount = 0;
-
-window.customBgImage = null;
-window.customBgVideo = null;
-window.customMaskImage = null;
-
-function makeBgCanvas() {
-  const c = document.createElement('canvas');
-  c.width = 720; c.height = 1280;
-  return [c, c.getContext('2d')];
-}
-function rasterize(draw) {
-  const [c, b] = makeBgCanvas();
-  draw(b, c);
-  const img = new Image();
-  img.src = c.toDataURL('image/jpeg', 0.85);
-  return img;
-}
-function createMusicBg1() {
-  return rasterize((b) => {
-    b.fillStyle = '#050510'; b.fillRect(0, 0, 720, 1280);
-    const grad = b.createRadialGradient(360, 640, 50, 360, 640, 600);
-    grad.addColorStop(0, '#ff0055'); grad.addColorStop(1, '#002244');
-    b.fillStyle = grad; b.fillRect(0, 0, 720, 1280);
-    b.strokeStyle = 'rgba(255,255,255,0.18)'; b.lineWidth = 4;
-    b.beginPath(); b.arc(360, 640, 200, 0, Math.PI * 2); b.stroke();
-    b.beginPath(); b.arc(360, 640, 350, 0, Math.PI * 2); b.stroke();
-  });
-}
-function createMusicBg2() {
-  return rasterize((b) => {
-    const grad = b.createLinearGradient(0, 0, 720, 1280);
-    grad.addColorStop(0, '#00f0ff'); grad.addColorStop(1, '#7928ca');
-    b.fillStyle = grad; b.fillRect(0, 0, 720, 1280);
-    b.fillStyle = 'rgba(0,0,0,0.28)';
-    for (let i = 0; i < 720; i += 40) b.fillRect(i, 900, 25, Math.sin(i) * 250 + 300);
-  });
-}
-function createMusicBg3() {
-  return rasterize((b) => {
-    const grad = b.createRadialGradient(360, 200, 20, 360, 640, 700);
-    grad.addColorStop(0, '#ffb800'); grad.addColorStop(1, '#3a0ca3');
-    b.fillStyle = grad; b.fillRect(0, 0, 720, 1280);
-  });
-}
-window.customBgImage = createMusicBg1();
-
-function srcSize(src) {
-  if (!src) return { w: 0, h: 0 };
-  if (src.videoWidth) return { w: src.videoWidth, h: src.videoHeight };
-  return { w: src.naturalWidth || src.width || 0, h: src.naturalHeight || src.height || 0 };
-}
-
-function drawImageScaled(targetCtx, src, dest, mode) {
-  const { w, h } = srcSize(src);
-  if (!w || !h) return;
-  const hRatio = dest.width / w;
-  const vRatio = dest.height / h;
-  const ratio = mode === 'cover' ? Math.max(hRatio, vRatio) : Math.min(hRatio, vRatio);
-  const x = (dest.width - w * ratio) / 2;
-  const y = (dest.height - h * ratio) / 2;
-  targetCtx.save();
-  if (facingMode === 'user' && src === video) {
-    targetCtx.translate(dest.width, 0);
-    targetCtx.scale(-1, 1);
-    targetCtx.drawImage(src, dest.width - x - w * ratio, y, w * ratio, h * ratio);
-  } else {
-    targetCtx.drawImage(src, x, y, w * ratio, h * ratio);
-  }
-  targetCtx.restore();
-}
-
-function drawBackground() {
-  if (window.customBgVideo && window.customBgVideo.readyState >= 2) {
-    ctx.drawImage(window.customBgVideo, 0, 0, canvas.width, canvas.height);
-  } else if (window.customBgImage) {
-    ctx.drawImage(window.customBgImage, 0, 0, canvas.width, canvas.height);
-  } else {
-    ctx.fillStyle = '#071018';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-}
-
-function drawMaskAndLogo() {
-  if (window.customMaskImage && window.customMaskImage.complete) {
-    const mw = canvas.width * 0.4;
-    const ratio = (window.customMaskImage.naturalHeight || 1) / (window.customMaskImage.naturalWidth || 1);
-    const mh = mw * ratio;
-    ctx.drawImage(window.customMaskImage, (canvas.width - mw) / 2, canvas.height * 0.22, mw, mh);
-  }
-  const logoVal = document.getElementById('logoText').value || 'DJCIOKOSTUDIO';
-  ctx.save();
-  ctx.font = 'bold 28px Georgia';
-  ctx.fillStyle = '#b9e4ff';
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 10;
-  ctx.textAlign = 'right';
-  ctx.fillText(logoVal, canvas.width - 24, 48);
-  ctx.restore();
-}
-
-function fitCanvasToVideo() {
-  const w = video.videoWidth || 720;
-  const h = video.videoHeight || 1280;
-  if (canvas.width !== w || canvas.height !== h) {
-    canvas.width = w;
-    canvas.height = h;
-    personLayer.width = w;
-    personLayer.height = h;
-  }
-}
-
-function drawNormalFrame() {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  if (videoEnabled && video.readyState >= 2) {
-    drawImageScaled(ctx, video, canvas, scaleMode);
-  } else {
-    drawBackground();
-  }
-  drawMaskAndLogo();
-}
-
-function drawWithSegmentation(mask) {
-  drawBackground();
-  if (!videoEnabled || video.readyState < 2) {
-    drawMaskAndLogo();
-    return;
-  }
-  pctx.clearRect(0, 0, personLayer.width, personLayer.height);
-  drawImageScaled(pctx, video, personLayer, scaleMode);
-  pctx.globalCompositeOperation = 'destination-in';
-  pctx.drawImage(mask, 0, 0, personLayer.width, personLayer.height);
-  pctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(personLayer, 0, 0);
-  drawMaskAndLogo();
-}
-
-function initMediaPipe() {
-  if (typeof SelfieSegmentation === 'undefined') return;
-  selfieSegmentation = new SelfieSegmentation({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
-  });
-  selfieSegmentation.setOptions({ modelSelection: 1, selfieMode: true });
-  selfieSegmentation.onResults((results) => {
-    mpBusy = false;
-    if (aiCutActive && results.segmentationMask) drawWithSegmentation(results.segmentationMask);
-  });
-}
-
-function renderLoop() {
-  fitCanvasToVideo();
-  if (aiCutActive && selfieSegmentation && video.readyState >= 2 && !mpBusy) {
-    mpBusy = true;
-    selfieSegmentation.send({ image: video }).catch(() => { mpBusy = false; });
-  } else if (!aiCutActive) {
-    drawNormalFrame();
-  }
-  requestAnimationFrame(renderLoop);
-}
-
-async function startCamera(mode) {
-  if (mode) facingMode = mode;
-  try {
-    if (localStream) localStream.getTracks().forEach((t) => t.stop());
-    const constraints = {
-      audio: { echoCancellation: true, noiseSuppression: true },
-      video: { 
-        facingMode: { exact: facingMode }, 
-        width: { ideal: 720 }, 
-        height: { ideal: 1280 } 
-      }
-    };
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia(constraints);
-    } catch(e) {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: { facingMode: facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
-      });
-    }
-    video.srcObject = localStream;
-    video.muted = true;
-    video.setAttribute('playsinline', 'true');
-    await video.play();
-    startOverlay.classList.add('hidden');
-    showToast(facingMode === 'user' ? 'Cameră Selfie pornită' : 'Cameră Mare (Spate) pornită');
-  } catch (err) {
-    console.error(err);
-    startOverlay.classList.remove('hidden');
-    showToast('Eroare la pornirea camerei');
-  }
-}
-
-function stopLivePreview() {
-  if (liveVideoEl) {
-    liveVideoEl.remove();
-    liveVideoEl = null;
-  }
-  liveStream = null;
-}
-
-function startLivePreview() {
-  stopLivePreview();
-  liveStream = canvas.captureStream(24);
-  if (localStream) {
-    localStream.getAudioTracks().forEach((t) => liveStream.addTrack(t));
-  }
-  liveVideoEl = document.createElement('video');
-  liveVideoEl.srcObject = liveStream;
-  liveVideoEl.muted = true;
-  liveVideoEl.playsInline = true;
-  liveVideoEl.play().catch(() => {});
-  showToast('ON AIR activat!');
-}
-
-function updateCounterDisplay() {
-  const badge = document.getElementById('listenerCountBadge');
-  const countSpan = document.getElementById('activeCount');
-  if (isOnAir) {
-    badge.style.display = 'inline-block';
-    countSpan.textContent = connectedPeersCount;
-  } else {
-    badge.style.display = 'none';
-  }
-}
-
-// Butoane separate de start pentru fiecare cameră
-document.getElementById('btnStartSelfie').addEventListener('click', () => startCamera('user'));
-document.getElementById('btnStartBack').addEventListener('click', () => startCamera('environment'));
-
-document.getElementById('btnMusicBg1').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg1(); showToast('Fundal Club'); });
-document.getElementById('btnMusicBg2').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg2(); showToast('Fundal DJ Neon'); });
-document.getElementById('btnMusicBg3').addEventListener('click', () => { window.customBgVideo = null; window.customBgImage = createMusicBg3(); showToast('Fundal Party'); });
-
-const savedLogo = localStorage.getItem('dj_logo');
-if (savedLogo) document.getElementById('logoText').value = savedLogo;
-document.getElementById('logoText').addEventListener('input', (e) => { localStorage.setItem('dj_logo', e.target.value); });
-
-document.getElementById('btnAiCut').addEventListener('click', () => {
-  aiCutActive = !aiCutActive;
-  document.getElementById('btnAiCut').textContent = aiCutActive ? '✂️ AI Cut ON' : '✂️ AI Cut OFF';
-  document.getElementById('btnAiCut').classList.toggle('on', aiCutActive);
-});
-
-document.getElementById('btnScaleToggle').addEventListener('click', () => {
-  scaleMode = scaleMode === 'cover' ? 'contain' : 'cover';
-  document.getElementById('btnScaleToggle').textContent = '📐 Scalare: ' + (scaleMode === 'cover' ? 'Cover' : 'Contain');
-});
-
-document.getElementById('btnMic').addEventListener('click', () => {
-  if (!localStream) return showToast('Pornește camera mai întâi');
-  audioEnabled = !audioEnabled;
-  localStream.getAudioTracks().forEach((t) => { t.enabled = audioEnabled; });
-  document.getElementById('btnMic').textContent = audioEnabled ? '🎙 Audio ON' : '🔇 Audio OFF';
-  document.getElementById('btnMic').classList.toggle('on', audioEnabled);
-});
-
-document.getElementById('btnVideoToggle').addEventListener('click', () => {
-  videoEnabled = !videoEnabled;
-  document.getElementById('btnVideoToggle').textContent = videoEnabled ? '📹 Video ON' : '📴 Video OFF';
-  document.getElementById('btnVideoToggle').classList.toggle('on', videoEnabled);
-});
-
-document.getElementById('btnUploadBg').addEventListener('click', () => document.getElementById('fileBg').click());
-document.getElementById('fileBg').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  window.customBgVideo = null;
-  const img = new Image();
-  img.onload = () => { window.customBgImage = img; showToast('Fundal încărcat'); };
-  img.src = URL.createObjectURL(file);
-});
-
-document.getElementById('btnUploadBgVideo').addEventListener('click', () => document.getElementById('fileBgVideo').click());
-document.getElementById('fileBgVideo').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  window.customBgImage = null;
-  bgVideoElem.src = URL.createObjectURL(file);
-  bgVideoElem.loop = true; bgVideoElem.muted = true; bgVideoElem.play();
-  window.customBgVideo = bgVideoElem;
-  showToast('Video încărcat');
-});
-
-document.getElementById('btnUploadMask').addEventListener('click', () => document.getElementById('fileMask').click());
-document.getElementById('fileMask').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const img = new Image();
-  img.onload = () => { window.customMaskImage = img; showToast('Mască încărcată'); };
-  img.src = URL.createObjectURL(file);
-});
-
-// Butonul ON AIR & Conexiunea PeerJS cu ID Fix
-document.getElementById('recBtn').addEventListener('click', () => {
-  if (!localStream) {
-    showToast('Alege o cameră mai întâi!');
-    return;
-  }
-  isOnAir = !isOnAir;
-  document.getElementById('recBtn').classList.toggle('rec', isOnAir);
-  document.getElementById('topLiveBadge').classList.toggle('active', isOnAir);
-
-  if (isOnAir) {
-    startLivePreview();
+<body style="background:#111; color:#fff; text-align:center; font-family:sans-serif; padding:20px;">
+    <h2>STUDIO EMISIE LIVE</h2>
+    <p id="status">Status: Oprit</p>
+    <p>Ascultători online: <span id="counter">0</span></p>
     
-    const fixedId = 'djcioko-live-studio-999';
-    peer = new Peer(fixedId);
+    <video id="localVideo" autoplay playsinline muted style="width:300px; border-radius:10px; background:#000;"></video><br><br>
+    <button id="btnStart" style="padding:12px 24px; font-size:16px; background:red; color:#fff; border:none; border-radius:8px; cursor:pointer;">PORNEȘTE ON AIR</button>
 
-    peer.on('open', (id) => {
-      console.log('Online cu ID:', id);
-      showToast('ON AIR activat pe server!');
-    });
+    <script>
+        const STUDIO_ID = 'djcioko-live-studio-999';
+        let peer = null;
+        let localStream = null;
+        let onlineCount = 0;
 
-    peer.on('call', (call) => {
-      call.answer(liveStream);
-    });
+        document.getElementById('btnStart').addEventListener('click', async () => {
+            try {
+                // 1. Luăm camera și microfonul
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('status').textContent = 'Se pornește serverul...';
 
-    peer.on('connection', (conn) => {
-      connectedPeersCount++;
-      updateCounterDisplay();
-      showToast(`Ascultător conectat! Total: ${connectedPeersCount}`);
+                // 2. Inițiem PeerJS cu ID-ul fix
+                peer = new Peer(STUDIO_ID, {
+                    host: '0.peerjs.com',
+                    port: 443,
+                    secure: true
+                });
 
-      conn.on('close', () => {
-        connectedPeersCount = Math.max(0, connectedPeersCount - 1);
-        updateCounterDisplay();
-        showToast(`Ascultător ieșit. Rămân: ${connectedPeersCount}`);
-      });
-    });
+                peer.on('open', (id) => {
+                    document.getElementById('status').textContent = '🟢 ON AIR (Emisie activă)';
+                    document.getElementById('btnStart').style.display = 'none';
+                });
 
-    peer.on('error', (err) => {
-      console.error('Eroare Peer:', err);
-      if(err.type === 'unavailable-id') {
-        showToast('Eroare: Sesiunea anterioară este încă închisă. Mai încearcă o dată.');
-      }
-    });
+                // 3. Când un ascultător se conectează (prin Weebly)
+                peer.on('connection', (conn) => {
+                    onlineCount++;
+                    document.getElementById('counter').textContent = onlineCount;
 
-  } else {
-    stopLivePreview();
-    if (peer) {
-      peer.destroy();
-      peer = null;
-    }
-    connectedPeersCount = 0;
-    updateCounterDisplay();
-    showToast('Emisie oprită');
-  }
-});
+                    conn.on('close', () => {
+                        onlineCount = Math.max(0, onlineCount - 1);
+                        document.getElementById('counter').textContent = onlineCount;
+                    });
+                });
 
-initMediaPipe();
-requestAnimationFrame(renderLoop);
-</script> 
-<script src="stream.js"></script>
+                // 4. Când ascultătorul cere stream-ul video/audio (apelul)
+                peer.on('call', (call) => {
+                    // Îi trimitem direct stream-ul nostru video și audio
+                    call.answer(localStream);
+                });
+
+                peer.on('error', (err) => {
+                    console.error(err);
+                    alert('Eroare PeerJS: ' + err.type);
+                });
+
+            } catch (e) {
+                alert('Eroare la pornirea camerei: ' + e.message);
+            }
+        });
+    </script>
 </body>
 </html>
