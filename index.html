@@ -111,7 +111,7 @@ let audioEnabled = true;
 let videoEnabled = true;
 let aiCutActive = false;
 let scaleMode = 'cover';
-let facingMode = 'user';
+let facingMode = 'user'; // Forțat pe 'user' (selfie din start)
 let isOnAir = false;
 let liveStream = null;
 let liveVideoEl = null;
@@ -288,15 +288,27 @@ async function startCamera() {
     if (localStream) localStream.getTracks().forEach((t) => t.stop());
     const constraints = {
       audio: { echoCancellation: true, noiseSuppression: true },
-      video: { facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
+      video: { 
+        facingMode: { exact: facingMode }, // Forțează exact camera selectată (user = selfie)
+        width: { ideal: 720 }, 
+        height: { ideal: 1280 } 
+      }
     };
-    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch(e) {
+      // Fallback în caz că dispozitivul nu suportă exact exact
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { facingMode: facingMode, width: { ideal: 720 }, height: { ideal: 1280 } }
+      });
+    }
     video.srcObject = localStream;
     video.muted = true;
     video.setAttribute('playsinline', 'true');
     await video.play();
     startOverlay.classList.add('hidden');
-    showToast('Cameră pornită');
+    showToast(facingMode === 'user' ? 'Cameră selfie pornită' : 'Cameră spate pornită');
   } catch (err) {
     console.error(err);
     startOverlay.classList.remove('hidden');
@@ -371,9 +383,11 @@ document.getElementById('btnVideoToggle').addEventListener('click', () => {
   document.getElementById('btnVideoToggle').classList.toggle('on', videoEnabled);
 });
 
+// Butonul de schimbare cameră (Flip între Selfie și Spate)
 document.getElementById('btnFlip').addEventListener('click', () => {
   facingMode = facingMode === 'user' ? 'environment' : 'user';
-  if (localStream) startCamera();
+  showToast(facingMode === 'user' ? 'Trecere la Selfie...' : 'Trecere la Spate...');
+  startCamera();
 });
 
 document.getElementById('btnUploadBg').addEventListener('click', () => document.getElementById('fileBg').click());
@@ -448,7 +462,6 @@ document.getElementById('recBtn').addEventListener('click', () => {
 
     peer.on('error', (err) => {
       console.error('Eroare Peer:', err);
-      // Dacă ID-ul este deja folosit, încearcă să curețe
       if(err.type === 'unavailable-id') {
         showToast('Eroare: Sesiunea anterioară este încă închisă. Mai încearcă o dată.');
       }
